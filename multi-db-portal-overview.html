@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>数据库监控系统 - 多数据库管理门户</title>
+<style>
+  :root {
+    --bg: #f0f2f5; --card: #fff; --primary: #2563eb; --primary-dark: #1e3a5f;
+    --success: #16a34a; --warning: #d97706; --danger: #dc2626;
+    --border: #e5e7eb; --text: #1f2937; --text-light: #6b7280;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); line-height:1.6; }
+
+  .hero {
+    background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 50%, #0ea5e9 100%);
+    color: white; padding: 40px 32px; text-align: center;
+  }
+  .hero h1 { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+  .hero p { font-size: 15px; opacity: 0.9; }
+  .hero-badges { display: flex; gap: 12px; justify-content: center; margin-top: 16px; flex-wrap: wrap; }
+  .hero-badge { background: rgba(255,255,255,0.15); border-radius: 20px; padding: 6px 16px; font-size: 13px; }
+
+  .container { max-width: 1000px; margin: -20px auto 0; padding: 0 20px 40px; position: relative; }
+
+  .section { background: var(--card); border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); padding: 24px; margin-bottom: 20px; }
+  .section h2 { font-size: 18px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .section h2 .num { background: var(--primary); color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+
+  .access-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  .access-card { border: 1px solid var(--border); border-radius: 10px; padding: 16px; transition: all 0.2s; }
+  .access-card:hover { border-color: var(--primary); box-shadow: 0 4px 12px rgba(37,99,235,0.1); }
+  .access-card .icon { font-size: 28px; margin-bottom: 8px; }
+  .access-card h3 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  .access-card .url { font-family: monospace; font-size: 13px; color: var(--primary); margin-bottom: 4px; word-break: break-all; }
+  .access-card .desc { font-size: 12px; color: var(--text-light); }
+  .access-card .creds { font-size: 12px; color: var(--text-light); margin-top: 6px; padding: 4px 8px; background: var(--bg); border-radius: 4px; }
+
+  .arch-flow { display: flex; flex-direction: column; gap: 10px; align-items: center; }
+  .arch-node { background: var(--bg); border: 2px solid var(--border); border-radius: 10px; padding: 12px 24px; text-align: center; min-width: 280px; }
+  .arch-node.highlight { border-color: var(--primary); background: rgba(37,99,235,0.05); }
+  .arch-node .title { font-weight: 600; font-size: 14px; }
+  .arch-node .sub { font-size: 12px; color: var(--text-light); margin-top: 2px; }
+  .arch-arrow { color: var(--text-light); font-size: 20px; }
+
+  .feature-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .feature-item { display: flex; gap: 10px; padding: 12px; border-radius: 8px; background: var(--bg); }
+  .feature-item .icon { font-size: 20px; flex-shrink: 0; }
+  .feature-item .text h4 { font-size: 14px; font-weight: 600; }
+  .feature-item .text p { font-size: 12px; color: var(--text-light); }
+
+  .db-types { display: flex; gap: 14px; }
+  .db-type-card { flex: 1; border: 2px solid var(--border); border-radius: 10px; padding: 16px; text-align: center; }
+  .db-type-card .icon { font-size: 32px; }
+  .db-type-card .name { font-weight: 600; font-size: 14px; margin-top: 4px; }
+  .db-type-card .metrics { font-size: 11px; color: var(--text-light); margin-top: 6px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 8px 12px; background: var(--bg); font-weight: 600; border-radius: 6px; }
+  td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  td code { background: var(--bg); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+
+  .status-badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+  .status-ok { background: #dcfce7; color: #16a34a; }
+
+  @media (max-width: 768px) {
+    .access-grid, .feature-list { grid-template-columns: 1fr; }
+    .db-types { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>📊 多数据库监控管理平台</h1>
+  <p>可视化配置数据库连接 · 支持 Oracle / MySQL / PostgreSQL · 一键启停采集</p>
+  <div class="hero-badges">
+    <div class="hero-badge">🟢 门户运行中</div>
+    <div class="hero-badge">🟢 Oracle 监控中</div>
+    <div class="hero-badge">📈 Grafana 可视化</div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- 1. 访问入口 -->
+  <div class="section">
+    <h2><span class="num">1</span> 访问入口</h2>
+    <div class="access-grid">
+      <div class="access-card" style="border-left: 4px solid #2563eb;">
+        <div class="icon">🖥️</div>
+        <h3>监控管理门户 <span class="status-badge status-ok">NEW</span></h3>
+        <div class="url">http://192.168.80.128:5000</div>
+        <div class="desc">添加/编辑/删除数据库连接、测试连通性、一键启停采集、查看日志</div>
+        <div class="creds">无需登录，直接访问</div>
+      </div>
+      <div class="access-card" style="border-left: 4px solid #f97316;">
+        <div class="icon">📈</div>
+        <h3>Grafana 仪表盘</h3>
+        <div class="url">http://192.168.80.128:3000</div>
+        <div class="desc">多数据库监控总览（10面板）、Oracle专项监控（11面板）</div>
+        <div class="creds">账号: admin / grafana123</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. 系统架构 -->
+  <div class="section">
+    <h2><span class="num">2</span> 系统架构</h2>
+    <div class="arch-flow">
+      <div class="arch-node highlight">
+        <div class="title">🖥️ 监控管理门户 (Flask :5000)</div>
+        <div class="sub">Web UI · SQLite 配置存储 · 进程管理 · 自动恢复</div>
+      </div>
+      <div class="arch-arrow">↓ 启停采集进程 (subprocess)</div>
+      <div class="arch-node">
+        <div class="title">🔄 采集工作进程 (每个DB一个进程)</div>
+        <div class="sub">Oracle (oracledb) · MySQL (pymysql) · PostgreSQL (psycopg2)</div>
+      </div>
+      <div class="arch-arrow">↓ 写入指标数据</div>
+      <div class="arch-node">
+        <div class="title">💾 InfluxDB 2.7 (:8086)</div>
+        <div class="sub">Bucket: oracle_metrics · 通用 measurement: db_instance / db_session / db_performance ...</div>
+      </div>
+      <div class="arch-arrow">↓ 查询展示</div>
+      <div class="arch-node">
+        <div class="title">📊 Grafana (:3000)</div>
+        <div class="sub">Flux 查询 · 按 db_name 变量筛选 · 10+ 面板实时刷新</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. 支持的数据库类型 -->
+  <div class="section">
+    <h2><span class="num">3</span> 支持的数据库类型</h2>
+    <div class="db-types">
+      <div class="db-type-card" style="border-color: #f97316;">
+        <div class="icon">🟠</div>
+        <div class="name">Oracle</div>
+        <div class="metrics">
+          实例状态 · 会话统计 · 等待事件<br>
+          表空间使用率 · 缓存命中率<br>
+          SGA/PGA 内存分布
+        </div>
+      </div>
+      <div class="db-type-card" style="border-color: #3b82f6;">
+        <div class="icon">🐬</div>
+        <div class="name">MySQL</div>
+        <div class="metrics">
+          实例状态 · 线程统计<br>
+          InnoDB Buffer Pool<br>
+          查询统计 · 数据库大小
+        </div>
+      </div>
+      <div class="db-type-card" style="border-color: #10b981;">
+        <div class="icon">🐘</div>
+        <div class="name">PostgreSQL</div>
+        <div class="metrics">
+          实例状态 · 会话统计<br>
+          Cache 命中率 · 事务统计<br>
+          数据库大小 · 后台写入
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. 门户功能 -->
+  <div class="section">
+    <h2><span class="num">4</span> 门户功能</h2>
+    <div class="feature-list">
+      <div class="feature-item">
+        <div class="icon">➕</div>
+        <div class="text"><h4>添加数据库</h4><p>选择类型(Oracle/MySQL/PostgreSQL)，填写连接信息</p></div>
+      </div>
+      <div class="feature-item">
+        <div class="icon">🔍</div>
+        <div class="text"><h4>测试连接</h4><p>保存前验证数据库连通性和权限</p></div>
+      </div>
+      <div class="feature-item">
+        <div class="icon">▶️</div>
+        <div class="text"><h4>一键启停</h4><p>每个数据库独立采集进程，互不影响</p></div>
+      </div>
+      <div class="feature-item">
+        <div class="icon">📋</div>
+        <div class="text"><h4>查看日志</h4><p>实时查看采集日志，快速定位问题</p></div>
+      </div>
+      <div class="feature-item">
+        <div class="icon">📈</div>
+        <div class="text"><h4>Grafana 跳转</h4><p>直接跳转到对应数据库的监控仪表盘</p></div>
+      </div>
+      <div class="feature-item">
+        <div class="icon">🔄</div>
+        <div class="text"><h4>自动恢复</h4><p>门户重启后自动恢复之前的采集进程</p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. 服务清单 -->
+  <div class="section">
+    <h2><span class="num">5</span> 服务清单 & 开机自启</h2>
+    <table>
+      <thead>
+        <tr><th>服务</th><th>端口</th><th>状态</th><th>开机自启</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>监控管理门户 (portal.service)</td><td><code>5000</code></td><td><span class="status-badge status-ok">active</span></td><td>✅ enabled</td></tr>
+        <tr><td>Oracle 数据库 (oracle-db.service)</td><td><code>1521</code></td><td><span class="status-badge status-ok">active</span></td><td>✅ enabled</td></tr>
+        <tr><td>InfluxDB (Docker)</td><td><code>8086</code></td><td><span class="status-badge status-ok">Up</span></td><td>✅ docker</td></tr>
+        <tr><td>Grafana (Docker)</td><td><code>3000</code></td><td><span class="status-badge status-ok">Up</span></td><td>✅ docker</td></tr>
+        <tr><td>Docker (docker.service)</td><td>-</td><td><span class="status-badge status-ok">active</span></td><td>✅ enabled</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 6. 如何添加新数据库 -->
+  <div class="section">
+    <h2><span class="num">6</span> 如何添加新数据库？</h2>
+    <table>
+      <tbody>
+        <tr><td style="width:40px; text-align:center; font-weight:700;">1</td><td>打开 <code>http://192.168.80.128:5000</code></td></tr>
+        <tr><td style="text-align:center; font-weight:700;">2</td><td>点击 <strong>+ 添加数据库</strong></td></tr>
+        <tr><td style="text-align:center; font-weight:700;">3</td><td>选择数据库类型（Oracle / MySQL / PostgreSQL）</td></tr>
+        <tr><td style="text-align:center; font-weight:700;">4</td><td>填写连接名称、主机地址、端口、服务名、用户名、密码</td></tr>
+        <tr><td style="text-align:center; font-weight:700;">5</td><td>点击 <strong>🔍 测试连接</strong> 验证连通性</td></tr>
+        <tr><td style="text-align:center; font-weight:700;">6</td><td>点击 <strong>保存</strong>，然后点击 <strong>▶ 启动</strong></td></tr>
+        <tr><td style="text-align:center; font-weight:700;">7</td><td>点击 <strong>📈 仪表盘</strong> 查看 Grafana 监控</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+</body>
+</html>

@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>数据库监控管理平台</title>
+  <style>
+    :root {
+      --bg: #f0f2f5;
+      --card-bg: #ffffff;
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --success: #16a34a;
+      --success-bg: #dcfce7;
+      --danger: #dc2626;
+      --danger-bg: #fee2e2;
+      --warning: #d97706;
+      --warning-bg: #fef3c7;
+      --gray: #6b7280;
+      --border: #e5e7eb;
+      --text: #1f2937;
+      --text-light: #6b7280;
+      --radius: 12px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+      --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* Header */
+    .header {
+      background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%);
+      color: white;
+      padding: 20px 32px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .header-left h1 { font-size: 22px; font-weight: 700; }
+    .header-left p { font-size: 13px; opacity: 0.85; margin-top: 2px; }
+    .header-right { display: flex; gap: 12px; align-items: center; }
+    .header-stat {
+      background: rgba(255,255,255,0.15);
+      border-radius: 8px;
+      padding: 6px 14px;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .header-stat .num { font-size: 18px; font-weight: 700; }
+    .header-stat .dot { width: 8px; height: 8px; border-radius: 50%; }
+
+    /* Container */
+    .container { max-width: 1100px; margin: 0 auto; padding: 24px 20px; }
+
+    /* Toolbar */
+    .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .toolbar h2 { font-size: 18px; font-weight: 600; }
+    .toolbar-actions { display: flex; gap: 10px; }
+
+    /* Buttons */
+    .btn {
+      padding: 8px 18px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-ghost { background: white; color: var(--text); border: 1px solid var(--border); }
+    .btn-ghost:hover { background: var(--bg); }
+    .btn-sm { padding: 5px 12px; font-size: 13px; }
+    .btn-success { background: var(--success); color: white; }
+    .btn-success:hover { background: #15803d; }
+    .btn-danger { background: var(--danger); color: white; }
+    .btn-danger:hover { background: #b91c1c; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* DB Cards */
+    .db-list { display: flex; flex-direction: column; gap: 14px; }
+    .db-card {
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 18px 22px;
+      transition: box-shadow 0.2s;
+      border-left: 4px solid var(--gray);
+    }
+    .db-card:hover { box-shadow: var(--shadow-lg); }
+    .db-card.running { border-left-color: var(--success); }
+    .db-card.stopped { border-left-color: var(--gray); }
+    .db-card.error { border-left-color: var(--danger); }
+
+    .db-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .db-card-title { display: flex; align-items: center; gap: 10px; }
+    .db-icon { font-size: 24px; }
+    .db-card-title h3 { font-size: 16px; font-weight: 600; }
+    .db-card-title .db-type-badge {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .db-type-oracle { background: #fef3c7; color: #92400e; }
+    .db-type-mysql { background: #dbeafe; color: #1e40af; }
+    .db-type-postgresql { background: #d1fae5; color: #065f46; }
+
+    .db-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+    .status-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .status-running .status-dot { background: var(--success); box-shadow: 0 0 0 3px var(--success-bg); }
+    .status-stopped .status-dot { background: var(--gray); }
+    .status-error .status-dot { background: var(--danger); box-shadow: 0 0 0 3px var(--danger-bg); }
+    .status-running { color: var(--success); }
+    .status-stopped { color: var(--gray); }
+    .status-error { color: var(--danger); }
+
+    .db-card-info { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 14px; font-size: 13px; color: var(--text-light); }
+    .db-info-item { display: flex; align-items: center; gap: 4px; }
+    .db-info-item .label { font-weight: 500; }
+    .db-error-msg {
+      background: var(--danger-bg);
+      color: var(--danger);
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      margin-bottom: 10px;
+      word-break: break-all;
+    }
+
+    .db-card-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-light);
+    }
+    .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+    .empty-state h3 { font-size: 16px; margin-bottom: 6px; color: var(--text); }
+    .empty-state p { font-size: 14px; }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.4);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .modal-overlay.show { display: flex; }
+    .modal {
+      background: white;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-lg);
+      width: 500px;
+      max-width: 90vw;
+      max-height: 85vh;
+      overflow-y: auto;
+    }
+    .modal-header {
+      padding: 18px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .modal-header h3 { font-size: 18px; font-weight: 600; }
+    .modal-close { background: none; border: none; font-size: 22px; cursor: pointer; color: var(--gray); line-height: 1; }
+    .modal-body { padding: 20px 24px; }
+    .modal-footer {
+      padding: 14px 24px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    /* Form */
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px; color: var(--text); }
+    .form-group .hint { font-size: 12px; color: var(--text-light); margin-top: 3px; }
+    .form-group input, .form-group select {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 14px;
+      transition: border-color 0.2s;
+      outline: none;
+    }
+    .form-group input:focus, .form-group select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+    .form-row { display: flex; gap: 14px; }
+    .form-row .form-group { flex: 1; }
+
+    /* DB type selector */
+    .db-type-selector { display: flex; gap: 10px; }
+    .db-type-option {
+      flex: 1;
+      padding: 14px;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .db-type-option:hover { border-color: var(--primary); }
+    .db-type-option.selected { border-color: var(--primary); background: rgba(37,99,235,0.05); }
+    .db-type-option .icon { font-size: 28px; margin-bottom: 4px; }
+    .db-type-option .name { font-size: 13px; font-weight: 600; }
+    .db-type-option .port { font-size: 11px; color: var(--text-light); }
+
+    /* Test result */
+    .test-result {
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      margin-bottom: 12px;
+      display: none;
+    }
+    .test-result.show { display: block; }
+    .test-result.ok { background: var(--success-bg); color: var(--success); }
+    .test-result.fail { background: var(--danger-bg); color: var(--danger); }
+
+    /* Logs modal */
+    .logs-content {
+      background: #1e293b;
+      color: #e2e8f0;
+      padding: 14px;
+      border-radius: 8px;
+      font-family: "Cascadia Code", "Fira Code", "Consolas", monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      max-height: 400px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      padding: 12px 20px;
+      border-radius: 8px;
+      color: white;
+      font-size: 14px;
+      z-index: 2000;
+      box-shadow: var(--shadow-lg);
+      animation: slideIn 0.3s ease;
+    }
+    .toast.success { background: var(--success); }
+    .toast.error { background: var(--danger); }
+    .toast.info { background: var(--primary); }
+    @keyframes slideIn { from { transform: translateY(100px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+    /* Loading spinner */
+    .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.6s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Responsive */
+    @media (max-width: 640px) {
+      .header { flex-direction: column; gap: 12px; }
+      .header-right { flex-wrap: wrap; justify-content: center; }
+      .form-row { flex-direction: column; }
+      .db-type-selector { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <h1>📊 数据库监控管理平台</h1>
+    <p>可视化管理数据库连接配置 · 支持 Oracle / MySQL / PostgreSQL</p>
+  </div>
+  <div class="header-right" id="header-stats"></div>
+</div>
+
+<div class="container">
+  <div class="toolbar">
+    <h2>数据库连接列表</h2>
+    <div class="toolbar-actions">
+      <button class="btn btn-ghost btn-sm" onclick="loadConnections()">🔄 刷新</button>
+      <button class="btn btn-primary btn-sm" onclick="openAddModal()">+ 添加数据库</button>
+      <a href="#" class="btn btn-ghost btn-sm grafana-link" style="text-decoration:none">📈 Grafana</a>
+    </div>
+  </div>
+
+  <div id="db-list" class="db-list">
+    <div class="empty-state">
+      <div class="icon">📡</div>
+      <h3>暂无数据库连接</h3>
+      <p>点击「添加数据库」开始监控</p>
+    </div>
+  </div>
+</div>
+
+<!-- Add/Edit Modal -->
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modal-title">添加数据库</h3>
+      <button class="modal-close" onclick="closeModal('edit-modal')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div id="test-result" class="test-result"></div>
+      <input type="hidden" id="edit-id">
+
+      <div class="form-group">
+        <label>数据库类型</label>
+        <div class="db-type-selector" id="db-type-selector">
+          <div class="db-type-option selected" data-type="oracle" onclick="selectDbType('oracle')">
+            <div class="icon">🟠</div>
+            <div class="name">Oracle</div>
+            <div class="port">默认端口 1521</div>
+          </div>
+          <div class="db-type-option" data-type="mysql" onclick="selectDbType('mysql')">
+            <div class="icon">🐬</div>
+            <div class="name">MySQL</div>
+            <div class="port">默认端口 3306</div>
+          </div>
+          <div class="db-type-option" data-type="postgresql" onclick="selectDbType('postgresql')">
+            <div class="icon">🐘</div>
+            <div class="name">PostgreSQL</div>
+            <div class="port">默认端口 5432</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>连接名称</label>
+        <input type="text" id="f-name" placeholder="例如：生产Oracle主库" maxlength="50">
+      </div>
+
+      <div class="form-row">
+        <div class="form-group" style="flex:2">
+          <label>主机地址</label>
+          <input type="text" id="f-host" placeholder="192.168.1.100" maxlength="100">
+        </div>
+        <div class="form-group" style="flex:1">
+          <label>端口</label>
+          <input type="number" id="f-port" value="1521" min="1" max="65535">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label id="f-service-label">Service Name</label>
+        <input type="text" id="f-service" placeholder="XE">
+        <div class="hint" id="f-service-hint">Oracle 服务名，例如 XE、ORCLPDB1</div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>用户名</label>
+          <input type="text" id="f-username" placeholder="监控用户名" maxlength="100">
+        </div>
+        <div class="form-group">
+          <label>密码</label>
+          <input type="password" id="f-password" placeholder="密码" maxlength="100">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>采集间隔（秒）</label>
+        <input type="number" id="f-interval" value="10" min="5" max="3600">
+        <div class="hint">建议 10-30 秒，间隔越小数据越细但负载越高</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="testFromModal()" id="btn-test">🔍 测试连接</button>
+      <button class="btn btn-ghost" onclick="closeModal('edit-modal')">取消</button>
+      <button class="btn btn-primary" onclick="saveConnection()" id="btn-save">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Logs Modal -->
+<div class="modal-overlay" id="logs-modal">
+  <div class="modal" style="width:700px;">
+    <div class="modal-header">
+      <h3>采集日志 - <span id="logs-db-name"></span></h3>
+      <button class="modal-close" onclick="closeModal('logs-modal')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="logs-content" id="logs-content">加载中...</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost btn-sm" onclick="loadLogs(currentLogsId)">🔄 刷新</button>
+      <button class="btn btn-primary btn-sm" onclick="closeModal('logs-modal')">关闭</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let connections = [];
+let dbTypes = [];
+let selectedDbType = 'oracle';
+let currentLogsId = null;
+
+// ─── API 调用 ──────────────────────────────────────────
+
+async function api(url, method='GET', body=null) {
+  const opts = { method, headers: {'Content-Type': 'application/json'} };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(url, opts);
+  return res.json();
+}
+
+// ─── 加载数据 ──────────────────────────────────────────
+
+async function loadDbTypes() {
+  dbTypes = await api('/api/db-types');
+}
+
+async function loadConnections() {
+  connections = await api('/api/connections');
+  renderList();
+  loadStats();
+}
+
+async function loadStats() {
+  const stats = await api('/api/stats');
+  const el = document.getElementById('header-stats');
+  el.innerHTML = `
+    <div class="header-stat"><span class="dot" style="background:#22c55e"></span><span class="num">${stats.running}</span> 运行</div>
+    <div class="header-stat"><span class="dot" style="background:#9ca3af"></span><span class="num">${stats.stopped}</span> 停止</div>
+    ${stats.error > 0 ? `<div class="header-stat"><span class="dot" style="background:#ef4444"></span><span class="num">${stats.error}</span> 异常</div>` : ''}
+    <div class="header-stat">总计 <span class="num">${stats.total}</span></div>
+  `;
+}
+
+// ─── 渲染列表 ──────────────────────────────────────────
+
+function renderList() {
+  const el = document.getElementById('db-list');
+  if (connections.length === 0) {
+    el.innerHTML = `
+      <div class="empty-state">
+        <div class="icon">📡</div>
+        <h3>暂无数据库连接</h3>
+        <p>点击「添加数据库」开始监控</p>
+      </div>`;
+    return;
+  }
+
+  el.innerHTML = connections.map(c => {
+    const typeIcon = {oracle:'🟠', mysql:'🐬', postgresql:'🐘'}[c.db_type] || '🗄️';
+    const typeClass = `db-type-${c.db_type}`;
+    const statusClass = c.status;
+    const statusText = {running:'运行中', stopped:'已停止', error:'异常'}[c.status] || c.status;
+
+    return `
+    <div class="db-card ${statusClass}">
+      <div class="db-card-header">
+        <div class="db-card-title">
+          <span class="db-icon">${typeIcon}</span>
+          <h3>${esc(c.name)}</h3>
+          <span class="db-type-badge ${typeClass}">${c.db_type}</span>
+        </div>
+        <div class="db-status ${statusClass}">
+          <span class="status-dot"></span>
+          ${statusText}
+        </div>
+      </div>
+      <div class="db-card-info">
+        <div class="db-info-item"><span class="label">地址:</span> ${esc(c.host)}:${c.port}</div>
+        ${c.service_name ? `<div class="db-info-item"><span class="label">服务:</span> ${esc(c.service_name)}</div>` : ''}
+        <div class="db-info-item"><span class="label">用户:</span> ${esc(c.username)}</div>
+        <div class="db-info-item"><span class="label">间隔:</span> ${c.collect_interval}s</div>
+        ${c.pid ? `<div class="db-info-item"><span class="label">PID:</span> ${c.pid}</div>` : ''}
+        ${c.last_collect_at ? `<div class="db-info-item"><span class="label">最后采集:</span> ${c.last_collect_at}</div>` : ''}
+      </div>
+      ${c.last_error ? `<div class="db-error-msg">⚠️ ${esc(c.last_error)}</div>` : ''}
+      <div class="db-card-actions">
+        ${c.status !== 'running'
+          ? `<button class="btn btn-success btn-sm" onclick="startMonitor(${c.id})">▶ 启动</button>`
+          : `<button class="btn btn-ghost btn-sm" onclick="stopMonitor(${c.id})">⏹ 停止</button>`
+        }
+        <button class="btn btn-ghost btn-sm" onclick="testConnection(${c.id})">🔍 测试</button>
+        <button class="btn btn-ghost btn-sm" onclick="openEditModal(${c.id})">✏ 编辑</button>
+        <button class="btn btn-ghost btn-sm" onclick="showLogs(${c.id}, '${esc(c.name)}')">📋 日志</button>
+        <a href="http://'+location.hostname+':3000/d/multi-db-monitor?var-db_name='+encodeURIComponent(c.name)+'" target="_blank" class="btn btn-ghost btn-sm grafana-link" style="text-decoration:none">📈 仪表盘</a>
+        <button class="btn btn-danger btn-sm" onclick="deleteConnection(${c.id})">🗑 删除</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ─── 添加/编辑 ─────────────────────────────────────────
+
+function openAddModal() {
+  document.getElementById('modal-title').textContent = '添加数据库';
+  document.getElementById('edit-id').value = '';
+  document.getElementById('f-name').value = '';
+  document.getElementById('f-host').value = '';
+  document.getElementById('f-port').value = '1521';
+  document.getElementById('f-service').value = '';
+  document.getElementById('f-username').value = '';
+  document.getElementById('f-password').value = '';
+  document.getElementById('f-interval').value = '10';
+  document.getElementById('test-result').className = 'test-result';
+  selectDbType('oracle');
+  document.getElementById('edit-modal').classList.add('show');
+}
+
+function openEditModal(id) {
+  const c = connections.find(x => x.id === id);
+  if (!c) return;
+  document.getElementById('modal-title').textContent = '编辑数据库';
+  document.getElementById('edit-id').value = id;
+  document.getElementById('f-name').value = c.name;
+  document.getElementById('f-host').value = c.host;
+  document.getElementById('f-port').value = c.port;
+  document.getElementById('f-service').value = c.service_name || '';
+  document.getElementById('f-username').value = c.username;
+  document.getElementById('f-password').value = c.password;
+  document.getElementById('f-interval').value = c.collect_interval;
+  document.getElementById('test-result').className = 'test-result';
+  selectDbType(c.db_type);
+  document.getElementById('edit-modal').classList.add('show');
+}
+
+function selectDbType(type) {
+  selectedDbType = type;
+  document.querySelectorAll('.db-type-option').forEach(el => {
+    el.classList.toggle('selected', el.dataset.type === type);
+  });
+  // 更新端口和服务名标签
+  const info = dbTypes.find(t => t.value === type);
+  if (info) {
+    document.getElementById('f-port').value = info.default_port;
+    document.getElementById('f-port').placeholder = info.default_port;
+    document.getElementById('f-service-label').textContent = info.service_label;
+    document.getElementById('f-service').placeholder = info.service_placeholder;
+    const hints = {
+      oracle: 'Oracle 服务名，例如 XE、ORCLPDB1',
+      mysql: '要监控的数据库名，例如 mydb',
+      postgresql: '要监控的数据库名，例如 mydb'
+    };
+    document.getElementById('f-service-hint').textContent = hints[type] || '';
+  }
+}
+
+async function saveConnection() {
+  const id = document.getElementById('edit-id').value;
+  const data = {
+    name: document.getElementById('f-name').value.trim(),
+    db_type: selectedDbType,
+    host: document.getElementById('f-host').value.trim(),
+    port: parseInt(document.getElementById('f-port').value) || 1521,
+    service_name: document.getElementById('f-service').value.trim(),
+    username: document.getElementById('f-username').value.trim(),
+    password: document.getElementById('f-password').value,
+    collect_interval: parseInt(document.getElementById('f-interval').value) || 10,
+  };
+
+  if (!data.name || !data.host || !data.username) {
+    toast('请填写必填字段', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('btn-save');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> 保存中...';
+
+  try {
+    const url = id ? `/api/connections/${id}` : '/api/connections';
+    const method = id ? 'PUT' : 'POST';
+    const res = await api(url, method, data);
+    if (res.error) {
+      toast(res.error, 'error');
+    } else {
+      toast(id ? '更新成功' : '创建成功', 'success');
+      closeModal('edit-modal');
+      loadConnections();
+    }
+  } catch(e) {
+    toast('保存失败: ' + e.message, 'error');
+  }
+  btn.disabled = false;
+  btn.textContent = '保存';
+}
+
+// ─── 操作 ─────────────────────────────────────────────
+
+async function testConnection(id) {
+  toast('正在测试连接...', 'info');
+  const res = await api(`/api/connections/${id}/test`, 'POST');
+  if (res.ok) {
+    toast(res.message, 'success');
+  } else {
+    toast('连接失败: ' + res.error, 'error');
+  }
+}
+
+async function testFromModal() {
+  const id = document.getElementById('edit-id').value;
+  const btn = document.getElementById('btn-test');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> 测试中...';
+  const el = document.getElementById('test-result');
+  el.className = 'test-result';
+
+  // 先保存（如果新建的话）再测试
+  if (!id) {
+    // 临时保存用于测试
+    const data = {
+      name: document.getElementById('f-name').value.trim() || '_test_tmp',
+      db_type: selectedDbType,
+      host: document.getElementById('f-host').value.trim(),
+      port: parseInt(document.getElementById('f-port').value) || 1521,
+      service_name: document.getElementById('f-service').value.trim(),
+      username: document.getElementById('f-username').value.trim(),
+      password: document.getElementById('f-password').value,
+      collect_interval: parseInt(document.getElementById('f-interval').value) || 10,
+    };
+    if (!data.host || !data.username) {
+      toast('请填写主机和用户名', 'error');
+      btn.disabled = false;
+      btn.textContent = '🔍 测试连接';
+      return;
+    }
+    // 直接用 subprocess 测试 - 创建临时配置
+    const res = await api('/api/connections', 'POST', data);
+    if (res.error) {
+      el.className = 'test-result show fail';
+      el.textContent = res.error;
+      btn.disabled = false;
+      btn.textContent = '🔍 测试连接';
+      return;
+    }
+    // 测试新创建的
+    const testRes = await api(`/api/connections/${res.id}/test`, 'POST');
+    if (testRes.ok) {
+      el.className = 'test-result show ok';
+      el.textContent = '✅ ' + testRes.message;
+      document.getElementById('edit-id').value = res.id;
+    } else {
+      el.className = 'test-result show fail';
+      el.textContent = '❌ ' + testRes.error;
+    }
+    // 删除临时配置（如果用户还没点保存）
+    // 实际上保留它，让用户决定保存还是删除
+  } else {
+    const res = await api(`/api/connections/${id}/test`, 'POST');
+    if (res.ok) {
+      el.className = 'test-result show ok';
+      el.textContent = '✅ ' + res.message;
+    } else {
+      el.className = 'test-result show fail';
+      el.textContent = '❌ ' + res.error;
+    }
+  }
+
+  btn.disabled = false;
+  btn.textContent = '🔍 测试连接';
+}
+
+async function startMonitor(id) {
+  toast('正在启动...', 'info');
+  const res = await api(`/api/connections/${id}/start`, 'POST');
+  if (res.error) {
+    toast(res.error, 'error');
+  } else {
+    toast('监控已启动', 'success');
+    setTimeout(loadConnections, 1000);
+  }
+}
+
+async function stopMonitor(id) {
+  const res = await api(`/api/connections/${id}/stop`, 'POST');
+  if (res.error) {
+    toast(res.error, 'error');
+  } else {
+    toast('监控已停止', 'success');
+    loadConnections();
+  }
+}
+
+async function deleteConnection(id) {
+  if (!confirm('确认删除此数据库连接？删除后不可恢复。')) return;
+  const res = await api(`/api/connections/${id}`, 'DELETE');
+  if (res.error) {
+    toast(res.error, 'error');
+  } else {
+    toast('已删除', 'success');
+    loadConnections();
+  }
+}
+
+// ─── 日志 ─────────────────────────────────────────────
+
+async function showLogs(id, name) {
+  currentLogsId = id;
+  document.getElementById('logs-db-name').textContent = name;
+  document.getElementById('logs-content').textContent = '加载中...';
+  document.getElementById('logs-modal').classList.add('show');
+  loadLogs(id);
+}
+
+async function loadLogs(id) {
+  const res = await api(`/api/connections/${id}/logs`);
+  document.getElementById('logs-content').textContent = res.logs || '（暂无日志）';
+  // 自动滚动到底部
+  const el = document.getElementById('logs-content');
+  el.scrollTop = el.scrollHeight;
+}
+
+// ─── 工具 ─────────────────────────────────────────────
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('show');
+}
+
+function toast(msg, type='info') {
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s || '';
+  return d.innerHTML;
+}
+
+// ─── 初始化 ───────────────────────────────────────────
+
+(async function init() {
+  // 设置 Grafana 跳转链接
+  document.querySelectorAll('.grafana-link[href="#"]').forEach(el => {
+    el.href = 'http://' + location.hostname + ':3000';
+  });
+  await loadDbTypes();
+  await loadConnections();
+  // 自动刷新
+  setInterval(loadConnections, 5000);
+})();
+
+// 点击遮罩关闭弹窗
+document.querySelectorAll('.modal-overlay').forEach(el => {
+  el.addEventListener('click', e => {
+    if (e.target === el) el.classList.remove('show');
+  });
+});
+</script>
+
+</body>
+</html>

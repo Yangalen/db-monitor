@@ -1,0 +1,16 @@
+[Unit]
+Description=Database Monitoring Portal
+After=network.target docker.service
+Wants=docker.service
+
+[Service]
+Type=simple
+User=yy
+ExecStart=/opt/oracle-monitor/scripts/venv/bin/python /opt/oracle-monitor/portal/app.py
+Restart=always
+RestartSec=5
+Environment=PYTHONPATH=/opt/oracle-monitor/portal
+WorkingDirectory=/opt/oracle-monitor/portal
+
+[Install]
+WantedBy=multi-user.target

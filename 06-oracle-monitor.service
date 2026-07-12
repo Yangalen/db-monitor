@@ -1,0 +1,17 @@
+[Unit]
+Description=Oracle Database Monitor Collector
+After=network.target docker.service
+Wants=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/oracle-monitor/scripts
+ExecStart=/opt/oracle-monitor/scripts/venv/bin/python /opt/oracle-monitor/scripts/collector.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/opt/oracle-monitor/logs/collector-stdout.log
+StandardError=append:/opt/oracle-monitor/logs/collector-stderr.log
+
+[Install]
+WantedBy=multi-user.target

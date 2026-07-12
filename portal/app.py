@@ -1,0 +1,389 @@
+#!/usr/bin/env python3
+"""数据库监控管理平台 - Web Portal
+
+提供可视化的数据库连接配置管理：
+- 添加/编辑/删除数据库连接（Oracle/MySQL/PostgreSQL）
+- 测试数据库连通性
+- 一键启停采集进程
+- 查看采集日志
+- 跳转 Grafana 仪表盘
+"""
+import os
+import sys
+import json
+import sqlite3
+import subprocess
+import signal
+import time
+from flask import Flask, render_template, jsonify, request
+
+app = Flask(__name__)
+
+PORTAL_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(PORTAL_DIR, "portal.db")
+VENV_PYTHON = "/opt/oracle-monitor/scripts/venv/bin/python"
+WORKER_SCRIPT = os.path.join(PORTAL_DIR, "collector_worker.py")
+LOG_DIR = os.path.join(PORTAL_DIR, "logs")
+
+# InfluxDB 配置
+INFLUX_URL = "http://localhost:8086"
+INFLUX_TOKEN = "my-super-secret-token-1234567890"
+INFLUX_ORG = "myorg"
+INFLUX_BUCKET = "oracle_metrics"
+GRAFANA_URL = "http://localhost:3000"
+
+os.makedirs(LOG_DIR, exist_ok=True)
+
+
+# ─── SQLite 工具 ───────────────────────────────────────────
+
+def get_db():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def init_db():
+    conn = get_db()
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS db_connections (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            name            TEXT NOT NULL UNIQUE,
+            db_type         TEXT NOT NULL,
+            host            TEXT NOT NULL,
+            port            INTEGER NOT NULL,
+            service_name    TEXT DEFAULT '',
+            username        TEXT NOT NULL,
+            password        TEXT NOT NULL,
+            collect_interval INTEGER DEFAULT 10,
+            status          TEXT DEFAULT 'stopped',
+            pid             INTEGER,
+            last_error      TEXT,
+            last_collect_at TEXT,
+            created_at      TEXT DEFAULT (datetime('now','localtime')),
+            updated_at      TEXT DEFAULT (datetime('now','localtime'))
+        )
+        """
+    )
+    conn.commit()
+    conn.close()
+
+
+def is_process_running(pid):
+    if not pid:
+        return False
+    try:
+        os.kill(pid, 0)
+        return True
+    except (ProcessLookupError, PermissionError):
+        return False
+
+
+# ─── 页面路由 ──────────────────────────────────────────────
+
+@app.route("/")
+def index():
+    return render_template("index.html")
+
+
+# ─── REST API ──────────────────────────────────────────────
+
+@app.route("/api/db-types")
+def db_types():
+    """返回支持的数据库类型列表"""
+    return jsonify(
+        [
+            {"value": "oracle", "label": "Oracle", "default_port": 1521, "service_label": "Service Name", "service_placeholder": "XE"},
+            {"value": "mysql", "label": "MySQL", "default_port": 3306, "service_label": "数据库名", "service_placeholder": "mydb"},
+            {"value": "postgresql", "label": "PostgreSQL", "default_port": 5432, "service_label": "数据库名", "service_placeholder": "mydb"},
+        ]
+    )
+
+
+@app.route("/api/connections")
+def list_connections():
+    """列出所有数据库连接配置"""
+    conn = get_db()
+    rows = conn.execute("SELECT * FROM db_connections ORDER BY id").fetchall()
+    result = []
+    for row in rows:
+        d = dict(row)
+        # 校验进程是否真的在运行
+        if d["status"] == "running" and not is_process_running(d.get("pid")):
+            d["status"] = "stopped"
+            conn.execute(
+                "UPDATE db_connections SET status='stopped', pid=NULL WHERE id=?",
+                (d["id"],),
+            )
+            conn.commit()
+        result.append(d)
+    conn.close()
+    return jsonify(result)
+
+
+@app.route("/api/connections", methods=["POST"])
+def create_connection():
+    """创建新的数据库连接配置"""
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute(
+            """
+            INSERT INTO db_connections
+                (name, db_type, host, port, service_name, username, password, collect_interval)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                data["name"],
+                data["db_type"],
+                data["host"],
+                data["port"],
+                data.get("service_name", ""),
+                data["username"],
+                data["password"],
+                data.get("collect_interval", 10),
+            ),
+        )
+        conn.commit()
+        cid = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        conn.close()
+        return jsonify({"id": cid, "message": "创建成功"}), 201
+    except sqlite3.IntegrityError:
+        conn.close()
+        return jsonify({"error": "数据库名称已存在"}), 400
+    except Exception as e:
+        conn.close()
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/connections/<int:cid>", methods=["PUT"])
+def update_connection(cid):
+    """更新数据库连接配置"""
+    data = request.json
+    conn = get_db()
+    try:
+        conn.execute(
+            """
+            UPDATE db_connections SET
+                name=?, db_type=?, host=?, port=?, service_name=?,
+                username=?, password=?, collect_interval=?,
+                updated_at=datetime('now','localtime')
+            WHERE id=?
+            """,
+            (
+                data["name"],
+                data["db_type"],
+                data["host"],
+                data["port"],
+                data.get("service_name", ""),
+                data["username"],
+                data["password"],
+                data.get("collect_interval", 10),
+                cid,
+            ),
+        )
+        conn.commit()
+        conn.close()
+        return jsonify({"message": "更新成功"})
+    except sqlite3.IntegrityError:
+        conn.close()
+        return jsonify({"error": "数据库名称已存在"}), 400
+
+
+@app.route("/api/connections/<int:cid>", methods=["DELETE"])
+def delete_connection(cid):
+    """删除数据库连接配置（先停止采集进程）"""
+    conn = get_db()
+    row = conn.execute("SELECT pid, status FROM db_connections WHERE id=?", (cid,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"error": "配置不存在"}), 404
+
+    if row["status"] == "running" and row["pid"]:
+        try:
+            os.kill(row["pid"], signal.SIGTERM)
+            time.sleep(1)
+        except Exception:
+            pass
+
+    conn.execute("DELETE FROM db_connections WHERE id=?", (cid,))
+    conn.commit()
+    conn.close()
+    return jsonify({"message": "删除成功"})
+
+
+@app.route("/api/connections/<int:cid>/test", methods=["POST"])
+def test_connection(cid):
+    """测试数据库连接"""
+    conn = get_db()
+    row = conn.execute("SELECT * FROM db_connections WHERE id=?", (cid,)).fetchone()
+    conn.close()
+    if not row:
+        return jsonify({"ok": False, "error": "配置不存在"}), 404
+
+    try:
+        result = subprocess.run(
+            [VENV_PYTHON, WORKER_SCRIPT, str(cid), "--test"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode == 0:
+            return jsonify({"ok": True, "message": result.stdout.strip()})
+        else:
+            err = result.stderr.strip() or result.stdout.strip()
+            return jsonify({"ok": False, "error": err})
+    except subprocess.TimeoutExpired:
+        return jsonify({"ok": False, "error": "连接超时（30s）"})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+
+@app.route("/api/connections/<int:cid>/start", methods=["POST"])
+def start_monitoring(cid):
+    """启动采集进程"""
+    conn = get_db()
+    row = conn.execute("SELECT * FROM db_connections WHERE id=?", (cid,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"error": "配置不存在"}), 404
+
+    if row["status"] == "running" and is_process_running(row["pid"]):
+        conn.close()
+        return jsonify({"message": "已在运行中"})
+
+    log_file = open(os.path.join(LOG_DIR, f"worker_{cid}.log"), "a")
+    proc = subprocess.Popen(
+        [VENV_PYTHON, WORKER_SCRIPT, str(cid)],
+        stdout=log_file,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+    )
+
+    conn.execute(
+        "UPDATE db_connections SET status=?, pid=?, last_error=NULL WHERE id=?",
+        ("running", proc.pid, cid),
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({"message": "监控已启动", "pid": proc.pid})
+
+
+@app.route("/api/connections/<int:cid>/stop", methods=["POST"])
+def stop_monitoring(cid):
+    """停止采集进程"""
+    conn = get_db()
+    row = conn.execute("SELECT pid FROM db_connections WHERE id=?", (cid,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"error": "配置不存在"}), 404
+
+    if row["pid"]:
+        try:
+            os.kill(row["pid"], signal.SIGTERM)
+            time.sleep(1)
+            try:
+                os.kill(row["pid"], signal.SIGKILL)
+            except Exception:
+                pass
+        except ProcessLookupError:
+            pass
+
+    conn.execute(
+        "UPDATE db_connections SET status='stopped', pid=NULL WHERE id=?",
+        (cid,),
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({"message": "监控已停止"})
+
+
+@app.route("/api/connections/<int:cid>/logs")
+def get_logs(cid):
+    """获取采集日志（最后 200 行）"""
+    log_path = os.path.join(LOG_DIR, f"worker_{cid}.log")
+    if not os.path.exists(log_path):
+        return jsonify({"logs": ""})
+    try:
+        with open(log_path, "r", encoding="utf-8", errors="replace") as f:
+            lines = f.readlines()[-200:]
+        return jsonify({"logs": "".join(lines)})
+    except Exception as e:
+        return jsonify({"logs": f"读取日志失败: {e}"})
+
+
+@app.route("/api/stats")
+def stats():
+    """统计信息"""
+    conn = get_db()
+    total = conn.execute("SELECT COUNT(*) as c FROM db_connections").fetchone()["c"]
+    running = conn.execute("SELECT COUNT(*) as c FROM db_connections WHERE status='running'").fetchone()["c"]
+    error = conn.execute("SELECT COUNT(*) as c FROM db_connections WHERE status='error'").fetchone()["c"]
+    by_type = conn.execute(
+        "SELECT db_type, COUNT(*) as c FROM db_connections GROUP BY db_type"
+    ).fetchall()
+    conn.close()
+    return jsonify(
+        {
+            "total": total,
+            "running": running,
+            "stopped": total - running - error,
+            "error": error,
+            "by_type": {r["db_type"]: r["c"] for r in by_type},
+        }
+    )
+
+
+@app.route("/api/grafana-url")
+def grafana_url():
+    return jsonify({"url": GRAFANA_URL})
+
+
+# ─── 启动时自动恢复采集进程 ────────────────────────────────
+
+def auto_restore_collectors():
+    """门户重启后，自动恢复之前正在运行的采集进程"""
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT id, name, status FROM db_connections WHERE status='running'"
+    ).fetchall()
+    conn.close()
+
+    for row in rows:
+        cid = row["id"]
+        name = row["name"]
+        try:
+            log_file = open(os.path.join(LOG_DIR, f"worker_{cid}.log"), "a")
+            log_file.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] Auto-restoring collector for '{name}'\n")
+            proc = subprocess.Popen(
+                [VENV_PYTHON, WORKER_SCRIPT, str(cid)],
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+            )
+            conn = get_db()
+            conn.execute(
+                "UPDATE db_connections SET pid=?, last_error=NULL WHERE id=?",
+                (proc.pid, cid),
+            )
+            conn.commit()
+            conn.close()
+            print(f"[Auto-restore] Started collector for '{name}' (PID: {proc.pid})")
+        except Exception as e:
+            print(f"[Auto-restore] Failed for '{name}': {e}")
+            conn = get_db()
+            conn.execute(
+                "UPDATE db_connections SET status='stopped', pid=NULL, last_error=? WHERE id=?",
+                (str(e)[:500], cid),
+            )
+            conn.commit()
+            conn.close()
+
+
+# ─── 启动 ──────────────────────────────────────────────────
+
+if __name__ == "__main__":
+    init_db()
+    auto_restore_collectors()
+    app.run(host="0.0.0.0", port=5000, debug=False)

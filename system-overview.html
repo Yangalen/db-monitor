@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oracle 数据库监控系统 — 部署总览</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+            background: #f0f2f5;
+            color: #333;
+            line-height: 1.6;
+        }
+        .container { max-width: 960px; margin: 0 auto; padding: 24px; }
+        .header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #fff;
+            padding: 32px 24px;
+            border-radius: 12px;
+            margin-bottom: 24px;
+        }
+        .header h1 { font-size: 24px; margin-bottom: 8px; }
+        .header p { opacity: 0.8; font-size: 14px; }
+        .badge {
+            display: inline-block;
+            background: #e74c3c;
+            color: #fff;
+            padding: 2px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            margin-left: 8px;
+        }
+        .status-bar {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+        .status-item {
+            flex: 1;
+            min-width: 140px;
+            background: #fff;
+            padding: 16px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            text-align: center;
+        }
+        .status-dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #27ae60;
+            margin-right: 6px;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .status-item .label { font-size: 12px; color: #888; margin-bottom: 4px; }
+        .status-item .value { font-size: 16px; font-weight: 600; }
+        .status-item .port { font-size: 11px; color: #aaa; }
+        .card {
+            background: #fff;
+            border-radius: 8px;
+            padding: 20px 24px;
+            margin-bottom: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        .card h2 {
+            font-size: 16px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .card h2 .icon { font-size: 20px; }
+        .info-row {
+            display: flex;
+            padding: 6px 0;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 13px;
+        }
+        .info-row:last-child { border-bottom: none; }
+        .info-row .key {
+            width: 140px;
+            color: #888;
+            flex-shrink: 0;
+        }
+        .info-row .val { color: #333; font-family: "SF Mono", "Consolas", monospace; }
+        .info-row .val .copy { color: #3498db; cursor: pointer; font-size: 12px; margin-left: 4px; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .panel-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .panel-item {
+            background: #f8f9fa;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            border-left: 3px solid #3498db;
+        }
+        .panel-item .ptype { color: #888; font-size: 11px; }
+        .cmd-block {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 12px 16px;
+            border-radius: 6px;
+            font-family: "SF Mono", "Consolas", monospace;
+            font-size: 13px;
+            margin: 8px 0;
+            overflow-x: auto;
+        }
+        .cmd-block .comment { color: #6a9955; }
+        .cmd-block .cmd { color: #569cd6; }
+        .access-btn {
+            display: inline-block;
+            background: #e74c3c;
+            color: #fff;
+            padding: 10px 24px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 600;
+            margin-top: 8px;
+        }
+        .access-btn:hover { background: #c0392b; }
+        .footer {
+            text-align: center;
+            color: #aaa;
+            font-size: 12px;
+            padding: 16px 0;
+        }
+        @media (max-width: 768px) {
+            .grid-2 { grid-template-columns: 1fr; }
+            .panel-list { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>Oracle 数据库监控系统 <span class="badge">已上线</span></h1>
+        <p>Oracle 21c XE → Python 采集器 → InfluxDB 2.7 → Grafana 9.5 | 服务器: 192.168.80.128</p>
+    </div>
+
+    <div class="status-bar">
+        <div class="status-item">
+            <div class="label">采集服务</div>
+            <div class="value"><span class="status-dot"></span>active</div>
+            <div class="port">systemd: oracle-monitor</div>
+        </div>
+        <div class="status-item">
+            <div class="label">Oracle 数据库</div>
+            <div class="value"><span class="status-dot"></span>OPEN</div>
+            <div class="port">端口: 1521</div>
+        </div>
+        <div class="status-item">
+            <div class="label">InfluxDB</div>
+            <div class="value"><span class="status-dot"></span>Running</div>
+            <div class="port">端口: 8086</div>
+        </div>
+        <div class="status-item">
+            <div class="label">Grafana</div>
+            <div class="value"><span class="status-dot"></span>Running</div>
+            <div class="port">端口: 3000</div>
+        </div>
+    </div>
+
+    <div class="grid-2">
+        <div class="card">
+            <h2><span class="icon">📊</span> Grafana 访问</h2>
+            <div class="info-row">
+                <div class="key">访问地址</div>
+                <div class="val">http://192.168.80.128:3000</div>
+            </div>
+            <div class="info-row">
+                <div class="key">用户名</div>
+                <div class="val">admin</div>
+            </div>
+            <div class="info-row">
+                <div class="key">密码</div>
+                <div class="val">grafana123</div>
+            </div>
+            <div class="info-row">
+                <div class="key">仪表盘</div>
+                <div class="val">Oracle 数据库监控 (11个面板)</div>
+            </div>
+            <a href="http://192.168.80.128:3000/d/oracle-db-monitor/oracle" class="access-btn" target="_blank">打开仪表盘 →</a>
+        </div>
+
+        <div class="card">
+            <h2><span class="icon">🗄️</span> Oracle 数据库</h2>
+            <div class="info-row">
+                <div class="key">版本</div>
+                <div class="val">Oracle 21c XE</div>
+            </div>
+            <div class="info-row">
+                <div class="key">连接串</div>
+                <div class="val">localhost:1521/XE</div>
+            </div>
+            <div class="info-row">
+                <div class="key">监控账号</div>
+                <div class="val">C##MONITOR / Monitor123</div>
+            </div>
+            <div class="info-row">
+                <div class="key">SYS 密码</div>
+                <div class="val">Oracle123</div>
+            </div>
+            <div class="info-row">
+                <div class="key">ORACLE_HOME</div>
+                <div class="val" style="font-size:11px">/opt/oracle/product/21c/dbhomeXE</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2><span class="icon">📡</span> InfluxDB 时序库</h2>
+            <div class="info-row">
+                <div class="key">版本</div>
+                <div class="val">InfluxDB 2.7 (Docker)</div>
+            </div>
+            <div class="info-row">
+                <div class="key">API 地址</div>
+                <div class="val">http://localhost:8086</div>
+            </div>
+            <div class="info-row">
+                <div class="key">Token</div>
+                <div class="val" style="font-size:11px">my-super-secret-token-1234567890</div>
+            </div>
+            <div class="info-row">
+                <div class="key">组织</div>
+                <div class="val">myorg</div>
+            </div>
+            <div class="info-row">
+                <div class="key">Bucket</div>
+                <div class="val">oracle_metrics</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2><span class="icon">🐍</span> Python 采集器</h2>
+            <div class="info-row">
+                <div class="key">采集间隔</div>
+                <div class="val">10 秒</div>
+            </div>
+            <div class="info-row">
+                <div class="key">每轮数据点</div>
+                <div class="val">26 个</div>
+            </div>
+            <div class="info-row">
+                <div class="key">脚本路径</div>
+                <div class="val" style="font-size:11px">/opt/oracle-monitor/scripts/collector.py</div>
+            </div>
+            <div class="info-row">
+                <div class="key">虚拟环境</div>
+                <div class="val" style="font-size:11px">/opt/oracle-monitor/scripts/venv</div>
+            </div>
+            <div class="info-row">
+                <div class="key">日志文件</div>
+                <div class="val" style="font-size:11px">/opt/oracle-monitor/scripts/logs/collector.log</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2><span class="icon">📋</span> 仪表盘面板 (11个)</h2>
+        <div class="panel-list">
+            <div class="panel-item">实例状态 <span class="ptype">[stat]</span></div>
+            <div class="panel-item">会话统计 <span class="ptype">[stat]</span></div>
+            <div class="panel-item">Buffer Cache 命中率 <span class="ptype">[gauge]</span></div>
+            <div class="panel-item">硬解析率 <span class="ptype">[stat]</span></div>
+            <div class="panel-item">PGA 已分配 <span class="ptype">[stat]</span></div>
+            <div class="panel-item">会话数趋势 <span class="ptype">[timeseries]</span></div>
+            <div class="panel-item">命中率趋势 <span class="ptype">[timeseries]</span></div>
+            <div class="panel-item">表空间使用率 <span class="ptype">[bargauge]</span></div>
+            <div class="panel-item">SGA 内存分布 <span class="ptype">[bargauge]</span></div>
+            <div class="panel-item">TOP 10 等待事件 <span class="ptype">[table]</span></div>
+            <div class="panel-item">物理读 & 一致性读 <span class="ptype">[timeseries]</span></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2><span class="icon">🔧</span> 常用运维命令</h2>
+        <div class="cmd-block">
+<span class="comment"># 查看采集器状态</span>
+<span class="cmd">sudo</span> systemctl status oracle-monitor
+
+<span class="comment"># 重启采集器</span>
+<span class="cmd">sudo</span> systemctl restart oracle-monitor
+
+<span class="comment"># 查看采集日志</span>
+tail -f /opt/oracle-monitor/scripts/logs/collector.log
+
+<span class="comment"># 查看错误日志</span>
+tail -f /opt/oracle-monitor/logs/collector-stderr.log
+
+<span class="comment"># 重启 Docker 容器 (InfluxDB + Grafana)</span>
+<span class="cmd">cd</span> /opt/oracle-monitor && <span class="cmd">sudo</span> docker compose restart
+
+<span class="comment"># 启动/停止 Oracle</span>
+<span class="cmd">sudo</span> systemctl start oracle-db
+<span class="cmd">sudo</span> systemctl stop oracle-db
+
+<span class="comment"># 查询 InfluxDB 最新数据</span>
+curl -s <span class="cmd">"http://localhost:8086/api/v2/query?org=myorg"</span> \
+  -H <span class="cmd">"Authorization: Token my-super-secret-token-1234567890"</span> \
+  -H <span class="cmd">"Content-Type: application/vnd.flux"</span> \
+  --data <span class="cmd">'from(bucket: "oracle_metrics") |> range(start: -1m) |> limit(n: 10)'</span>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2><span class="icon">🔄</span> 开机自启 (全部已启用)</h2>
+        <div class="info-row">
+            <div class="key">Docker</div>
+            <div class="val">docker.service → enabled</div>
+        </div>
+        <div class="info-row">
+            <div class="key">Oracle 数据库</div>
+            <div class="val">oracle-db.service → enabled (dbstart)</div>
+        </div>
+        <div class="info-row">
+            <div class="key">采集器</div>
+            <div class="val">oracle-monitor.service → enabled</div>
+        </div>
+        <div class="info-row">
+            <div class="key">ASLR</div>
+            <div class="val">/etc/sysctl.d/99-oracle.conf (randomize_va_space=0)</div>
+        </div>
+    </div>
+
+    <div class="footer">
+        Oracle 数据库监控系统 | 部署完成于 2026-07-12 | 服务器 192.168.80.128
+    </div>
+</div>
+</body>
+</html>
