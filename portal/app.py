@@ -15,9 +15,11 @@ import sqlite3
 import subprocess
 import signal
 import time
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, make_response
 
 app = Flask(__name__)
+app.config["TEMPLATES_AUTO_RELOAD"] = True
+app.jinja_env.auto_reload = True
 
 PORTAL_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(PORTAL_DIR, "portal.db")
@@ -84,7 +86,11 @@ def is_process_running(pid):
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    resp = make_response(render_template("index.html"))
+    resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
 
 
 # ─── REST API ──────────────────────────────────────────────

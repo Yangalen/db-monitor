@@ -504,7 +504,7 @@ function renderList() {
         <button class="btn btn-ghost btn-sm" onclick="testConnection(${c.id})">🔍 测试</button>
         <button class="btn btn-ghost btn-sm" onclick="openEditModal(${c.id})">✏ 编辑</button>
         <button class="btn btn-ghost btn-sm" onclick="showLogs(${c.id}, '${esc(c.name)}')">📋 日志</button>
-        <a href="http://'+location.hostname+':3000/d/multi-db-monitor?var-db_name='+encodeURIComponent(c.name)+'" target="_blank" class="btn btn-ghost btn-sm grafana-link" style="text-decoration:none">📈 仪表盘</a>
+        <a href="http://${location.hostname}:3000/d/multi-db-monitor?var-db_name=${encodeURIComponent(c.name)}" target="_blank" class="btn btn-ghost btn-sm grafana-link" style="text-decoration:none">📈 仪表盘</a>
         <button class="btn btn-danger btn-sm" onclick="deleteConnection(${c.id})">🗑 删除</button>
       </div>
     </div>`;

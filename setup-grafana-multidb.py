@@ -45,21 +45,21 @@ def build_dashboard():
     def flux(query, ref_id="A"):
         return {
             "datasource": {"type": "influxdb", "uid": ds_uid},
-            "query": f'from(bucket: "{INFLUX_BUCKET}")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r["_measurement"] == "{query}")\n  |> filter(fn: (r) => r["db_name"] =~ /^${{db_name}}$/)\n  |> last()',
+            "query": f'from(bucket: "{INFLUX_BUCKET}")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r["_measurement"] == "{query}")\n  |> filter(fn: (r) => r["db_name"] == "${{db_name}}")\n  |> last()',
             "refId": ref_id,
         }
 
     def flux_field(measurement, field, ref_id="A", agg="last"):
         return {
             "datasource": {"type": "influxdb", "uid": ds_uid},
-            "query": f'from(bucket: "{INFLUX_BUCKET}")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r["_measurement"] == "{measurement}")\n  |> filter(fn: (r) => r["_field"] == "{field}")\n  |> filter(fn: (r) => r["db_name"] =~ /^${{db_name}}$/)\n  |> aggregateWindow(every: v.windowPeriod, fn: {agg}, createEmpty: false)',
+            "query": f'from(bucket: "{INFLUX_BUCKET}")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r["_measurement"] == "{measurement}")\n  |> filter(fn: (r) => r["_field"] == "{field}")\n  |> filter(fn: (r) => r["db_name"] == "${{db_name}}")\n  |> aggregateWindow(every: v.windowPeriod, fn: {agg}, createEmpty: false)',
             "refId": ref_id,
         }
 
     def flux_grouped(measurement, field, group_tag, ref_id="A", agg="last"):
         return {
             "datasource": {"type": "influxdb", "uid": ds_uid},
-            "query": f'from(bucket: "{INFLUX_BUCKET}")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r["_measurement"] == "{measurement}")\n  |> filter(fn: (r) => r["_field"] == "{field}")\n  |> filter(fn: (r) => r["db_name"] =~ /^${{db_name}}$/)\n  |> group(columns: ["{group_tag}"])\n  |> aggregateWindow(every: v.windowPeriod, fn: {agg}, createEmpty: false)',
+            "query": f'from(bucket: "{INFLUX_BUCKET}")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r["_measurement"] == "{measurement}")\n  |> filter(fn: (r) => r["_field"] == "{field}")\n  |> filter(fn: (r) => r["db_name"] == "${{db_name}}")\n  |> group(columns: ["{group_tag}"])\n  |> aggregateWindow(every: v.windowPeriod, fn: {agg}, createEmpty: false)',
             "refId": ref_id,
         }
 
@@ -74,7 +74,7 @@ def build_dashboard():
         "datasource": {"type": "influxdb", "uid": ds_uid},
         "targets": [{
             "datasource": {"type": "influxdb", "uid": ds_uid},
-            "query": f'from(bucket: "{INFLUX_BUCKET}")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r["_measurement"] == "db_instance")\n  |> filter(fn: (r) => r["_field"] == "status_str")\n  |> filter(fn: (r) => r["db_name"] =~ /^${{db_name}}$/)\n  |> last()',
+            "query": f'from(bucket: "{INFLUX_BUCKET}")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r["_measurement"] == "db_instance")\n  |> filter(fn: (r) => r["_field"] == "status_str")\n  |> filter(fn: (r) => r["db_name"] == "${{db_name}}")\n  |> last()',
             "refId": "A",
         }],
         "fieldConfig": {"defaults": {"mappings": [], "thresholds": {"mode": "exact", "steps": [
@@ -112,7 +112,7 @@ def build_dashboard():
         "datasource": {"type": "influxdb", "uid": ds_uid},
         "targets": [{
             "datasource": {"type": "influxdb", "uid": ds_uid},
-            "query": f'from(bucket: "{INFLUX_BUCKET}")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r["_measurement"] == "db_performance")\n  |> filter(fn: (r) => r["_field"] =~ /hit_ratio|cache_hit/)\n  |> filter(fn: (r) => r["db_name"] =~ /^${{db_name}}$/)\n  |> last()',
+            "query": f'from(bucket: "{INFLUX_BUCKET}")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r["_measurement"] == "db_performance")\n  |> filter(fn: (r) => r["_field"] =~ /hit_ratio|cache_hit/)\n  |> filter(fn: (r) => r["db_name"] == "${{db_name}}")\n  |> last()',
             "refId": "A",
         }],
         "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100, "thresholds": {"mode": "absolute", "steps": [
@@ -130,7 +130,7 @@ def build_dashboard():
         "datasource": {"type": "influxdb", "uid": ds_uid},
         "targets": [{
             "datasource": {"type": "influxdb", "uid": ds_uid},
-            "query": f'from(bucket: "{INFLUX_BUCKET}")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r["_measurement"] == "db_memory")\n  |> filter(fn: (r) => r["_field"] == "bytes")\n  |> filter(fn: (r) => r["db_name"] =~ /^${{db_name}}$/)\n  |> filter(fn: (r) => r["name"] == "total PGA allocated" or r["name"] == "total PGA inuse")\n  |> last()',
+            "query": f'from(bucket: "{INFLUX_BUCKET}")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r["_measurement"] == "db_memory")\n  |> filter(fn: (r) => r["_field"] == "bytes")\n  |> filter(fn: (r) => r["db_name"] == "${{db_name}}")\n  |> filter(fn: (r) => r["name"] == "total PGA allocated" or r["name"] == "total PGA inuse")\n  |> last()',
             "refId": "A",
         }],
         "fieldConfig": {"defaults": {"unit": "bytes", "thresholds": {"mode": "absolute", "steps": [
@@ -166,7 +166,7 @@ def build_dashboard():
         "datasource": {"type": "influxdb", "uid": ds_uid},
         "targets": [{
             "datasource": {"type": "influxdb", "uid": ds_uid},
-            "query": f'from(bucket: "{INFLUX_BUCKET}")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r["_measurement"] == "db_performance")\n  |> filter(fn: (r) => r["_field"] =~ /hit_ratio|cache_hit/)\n  |> filter(fn: (r) => r["db_name"] =~ /^${{db_name}}$/)\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)',
+            "query": f'from(bucket: "{INFLUX_BUCKET}")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r["_measurement"] == "db_performance")\n  |> filter(fn: (r) => r["_field"] =~ /hit_ratio|cache_hit/)\n  |> filter(fn: (r) => r["db_name"] == "${{db_name}}")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)',
             "refId": "A",
         }],
         "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100, "custom": {"drawStyle": "line", "lineInterpolation": "smooth", "fillOpacity": 20}}, "overrides": []},
@@ -183,7 +183,7 @@ def build_dashboard():
         "datasource": {"type": "influxdb", "uid": ds_uid},
         "targets": [{
             "datasource": {"type": "influxdb", "uid": ds_uid},
-            "query": f'from(bucket: "{INFLUX_BUCKET}")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r["_measurement"] == "db_tablespace")\n  |> filter(fn: (r) => r["_field"] == "usage_pct")\n  |> filter(fn: (r) => r["db_name"] =~ /^${{db_name}}$/)\n  |> group(columns: ["name"])\n  |> last()',
+            "query": f'from(bucket: "{INFLUX_BUCKET}")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r["_measurement"] == "db_tablespace")\n  |> filter(fn: (r) => r["_field"] == "usage_pct")\n  |> filter(fn: (r) => r["db_name"] == "${{db_name}}")\n  |> group(columns: ["name"])\n  |> last()',
             "refId": "A",
         }],
         "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100, "thresholds": {"mode": "absolute", "steps": [
@@ -201,7 +201,7 @@ def build_dashboard():
         "datasource": {"type": "influxdb", "uid": ds_uid},
         "targets": [{
             "datasource": {"type": "influxdb", "uid": ds_uid},
-            "query": f'from(bucket: "{INFLUX_BUCKET}")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r["_measurement"] == "db_memory")\n  |> filter(fn: (r) => r["_field"] == "bytes")\n  |> filter(fn: (r) => r["db_name"] =~ /^${{db_name}}$/)\n  |> group(columns: ["type", "name"])\n  |> last()',
+            "query": f'from(bucket: "{INFLUX_BUCKET}")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r["_measurement"] == "db_memory")\n  |> filter(fn: (r) => r["_field"] == "bytes")\n  |> filter(fn: (r) => r["db_name"] == "${{db_name}}")\n  |> group(columns: ["type", "name"])\n  |> last()',
             "refId": "A",
         }],
         "fieldConfig": {"defaults": {"unit": "bytes"}, "overrides": []},
@@ -218,7 +218,7 @@ def build_dashboard():
         "datasource": {"type": "influxdb", "uid": ds_uid},
         "targets": [{
             "datasource": {"type": "influxdb", "uid": ds_uid},
-            "query": f'from(bucket: "{INFLUX_BUCKET}")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r["_measurement"] == "db_wait_events")\n  |> filter(fn: (r) => r["_field"] == "time_waited_ms")\n  |> filter(fn: (r) => r["db_name"] =~ /^${{db_name}}$/)\n  |> group(columns: ["event"])\n  |> last()\n  |> sort(columns: ["_value"], desc: true)\n  |> limit(n: 10)',
+            "query": f'from(bucket: "{INFLUX_BUCKET}")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r["_measurement"] == "db_wait_events")\n  |> filter(fn: (r) => r["_field"] == "time_waited_ms")\n  |> filter(fn: (r) => r["db_name"] == "${{db_name}}")\n  |> group(columns: ["event"])\n  |> last()\n  |> sort(columns: ["_value"], desc: true)\n  |> limit(n: 10)',
             "refId": "A",
         }],
         "transformations": [
@@ -265,10 +265,9 @@ def build_dashboard():
                     "datasource": {"type": "influxdb", "uid": ds_uid},
                     "query": f'from(bucket: "{INFLUX_BUCKET}")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r["_measurement"] == "db_instance")\n  |> group(columns: ["db_name"])\n  |> distinct(column: "db_name")',
                     "refresh": 1,
-                    "current": {"text": "All", "value": ".*"},
+                    "current": {"text": "", "value": ""},
                     "multi": False,
-                    "includeAll": True,
-                    "allValue": ".*",
+                    "includeAll": False,
                     "regex": "",
                 }]
             },
