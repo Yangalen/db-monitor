@@ -82,7 +82,7 @@ def build_dashboard():
             {"color": "green", "value": "OPEN"},
             {"color": "green", "value": "ACCEPTING_CONNECTIONS"},
         ]}}, "overrides": []},
-        "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": False}, "textMode": "value"},
+        "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "/.*/", "values": False}, "textMode": "value"},
     })
 
     # Panel 2: 会话总数 / 活跃
@@ -183,7 +183,7 @@ def build_dashboard():
         "datasource": {"type": "influxdb", "uid": ds_uid},
         "targets": [{
             "datasource": {"type": "influxdb", "uid": ds_uid},
-            "query": f'from(bucket: "{INFLUX_BUCKET}")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r["_measurement"] == "db_tablespace")\n  |> filter(fn: (r) => r["_field"] == "usage_pct")\n  |> filter(fn: (r) => r["db_name"] == "${{db_name}}")\n  |> group(columns: ["name"])\n  |> last()',
+            "query": f'from(bucket: "{INFLUX_BUCKET}")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r["_measurement"] == "db_tablespace")\n  |> filter(fn: (r) => r["_field"] == "usage_pct")\n  |> filter(fn: (r) => r["db_name"] == "${{db_name}}")\n  |> group(columns: ["name"])\n  |> last()\n  |> group()\n  |> keep(columns: ["name", "_value", "_time"])',
             "refId": "A",
         }],
         "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100, "thresholds": {"mode": "absolute", "steps": [
@@ -201,7 +201,7 @@ def build_dashboard():
         "datasource": {"type": "influxdb", "uid": ds_uid},
         "targets": [{
             "datasource": {"type": "influxdb", "uid": ds_uid},
-            "query": f'from(bucket: "{INFLUX_BUCKET}")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r["_measurement"] == "db_memory")\n  |> filter(fn: (r) => r["_field"] == "bytes")\n  |> filter(fn: (r) => r["db_name"] == "${{db_name}}")\n  |> group(columns: ["type", "name"])\n  |> last()',
+            "query": f'from(bucket: "{INFLUX_BUCKET}")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r["_measurement"] == "db_memory")\n  |> filter(fn: (r) => r["_field"] == "bytes")\n  |> filter(fn: (r) => r["db_name"] == "${{db_name}}")\n  |> group(columns: ["type", "name"])\n  |> last()\n  |> group()\n  |> keep(columns: ["type", "name", "_value", "_time"])',
             "refId": "A",
         }],
         "fieldConfig": {"defaults": {"unit": "bytes"}, "overrides": []},
@@ -263,7 +263,7 @@ def build_dashboard():
                     "name": "db_name",
                     "type": "query",
                     "datasource": {"type": "influxdb", "uid": ds_uid},
-                    "query": f'from(bucket: "{INFLUX_BUCKET}")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r["_measurement"] == "db_instance")\n  |> group(columns: ["db_name"])\n  |> distinct(column: "db_name")',
+                    "query": f'from(bucket: "{INFLUX_BUCKET}")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r["_measurement"] == "db_instance")\n  |> filter(fn: (r) => r["_field"] == "status_str")\n  |> group(columns: ["db_name"])\n  |> distinct(column: "db_name")',
                     "refresh": 1,
                     "current": {"text": "", "value": ""},
                     "multi": False,

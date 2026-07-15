@@ -15,6 +15,7 @@ import sqlite3
 import subprocess
 import signal
 import time
+import requests
 from flask import Flask, render_template, jsonify, request, make_response
 
 app = Flask(__name__)
@@ -63,6 +64,37 @@ def init_db():
             pid             INTEGER,
             last_error      TEXT,
             last_collect_at TEXT,
+            created_at      TEXT DEFAULT (datetime('now','localtime')),
+            updated_at      TEXT DEFAULT (datetime('now','localtime'))
+        )
+        """
+    )
+    # 告警配置表
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS alert_config (
+            id              INTEGER PRIMARY KEY DEFAULT 1,
+            webhook_url     TEXT DEFAULT '',
+            enabled         INTEGER DEFAULT 1,
+            updated_at      TEXT DEFAULT (datetime('now','localtime'))
+        )
+        """
+    )
+    conn.execute(
+        "INSERT OR IGNORE INTO alert_config (id) VALUES (1)"
+    )
+    # 告警规则表
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS alert_rules (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            db_name         TEXT NOT NULL DEFAULT '*',
+            metric          TEXT NOT NULL,
+            threshold       REAL NOT NULL DEFAULT 0,
+            comparison      TEXT NOT NULL DEFAULT '>',
+            enabled         INTEGER DEFAULT 1,
+            cooldown_minutes INTEGER DEFAULT 5,
+            last_alert_at   TEXT,
             created_at      TEXT DEFAULT (datetime('now','localtime')),
             updated_at      TEXT DEFAULT (datetime('now','localtime'))
         )
@@ -344,6 +376,134 @@ def stats():
 @app.route("/api/grafana-url")
 def grafana_url():
     return jsonify({"url": GRAFANA_URL})
+
+
+# ─── 告警配置 API ─────────────────────────────────────────
+
+METRICS_INFO = [
+    {"value": "active_sessions",   "label": "活跃会话数",     "unit": "个"},
+    {"value": "total_sessions",    "label": "总会话数",       "unit": "个"},
+    {"value": "tablespace_usage",  "label": "表空间使用率",   "unit": "%"},
+    {"value": "buffer_hit_ratio",  "label": "缓冲命中率",     "unit": "%"},
+    {"value": "parse_count",       "label": "每秒解析次数",   "unit": "次/s"},
+    {"value": "instance_status",   "label": "实例状态",       "unit": ""},
+]
+
+
+@app.route("/api/alert-config", methods=["GET", "PUT"])
+def alert_config():
+    """获取或更新告警全局配置"""
+    conn = get_db()
+    if request.method == "GET":
+        row = conn.execute("SELECT * FROM alert_config WHERE id=1").fetchone()
+        conn.close()
+        return jsonify(dict(row) if row else {"webhook_url": "", "enabled": 1})
+    else:
+        data = request.json
+        conn.execute(
+            "UPDATE alert_config SET webhook_url=?, enabled=?, updated_at=datetime('now','localtime') WHERE id=1",
+            (data.get("webhook_url", ""), data.get("enabled", 1)),
+        )
+        conn.commit()
+        conn.close()
+        return jsonify({"message": "保存成功"})
+
+
+@app.route("/api/alert-config/test", methods=["POST"])
+def test_webhook():
+    """测试 Webhook 推送"""
+    data = request.json
+    url = data.get("webhook_url", "")
+    if not url:
+        return jsonify({"ok": False, "error": "Webhook URL 为空"})
+
+    payload = {
+        "msgtype": "markdown",
+        "markdown": {
+            "content": (
+                "## ✅ 告警通知测试\n\n"
+                "> 这是一条来自 **数据库监控平台** 的测试消息\n"
+                "> 如果您收到此消息，说明 Webhook 配置正确\n"
+                f"> 时间: {time.strftime('%Y-%m-%d %H:%M:%S')}"
+            )
+        },
+    }
+    try:
+        r = requests.post(url, json=payload, timeout=10)
+        if r.status_code == 200:
+            return jsonify({"ok": True, "message": "测试消息已发送，请检查企业微信群"})
+        else:
+            return jsonify({"ok": False, "error": f"请求失败: HTTP {r.status_code}"})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+
+@app.route("/api/alert-rules")
+def list_alert_rules():
+    """列出所有告警规则"""
+    conn = get_db()
+    rows = conn.execute("SELECT * FROM alert_rules ORDER BY id").fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route("/api/alert-rules", methods=["POST"])
+def create_alert_rule():
+    """创建告警规则"""
+    data = request.json
+    conn = get_db()
+    conn.execute(
+        """INSERT INTO alert_rules (db_name, metric, threshold, comparison, enabled, cooldown_minutes)
+           VALUES (?, ?, ?, ?, ?, ?)""",
+        (
+            data.get("db_name", "*"),
+            data["metric"],
+            data["threshold"],
+            data.get("comparison", ">"),
+            data.get("enabled", 1),
+            data.get("cooldown_minutes", 5),
+        ),
+    )
+    conn.commit()
+    rid = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+    conn.close()
+    return jsonify({"id": rid, "message": "规则创建成功"}), 201
+
+
+@app.route("/api/alert-rules/<int:rid>", methods=["PUT", "DELETE"])
+def manage_alert_rule(rid):
+    """更新或删除告警规则"""
+    conn = get_db()
+    if request.method == "DELETE":
+        conn.execute("DELETE FROM alert_rules WHERE id=?", (rid,))
+        conn.commit()
+        conn.close()
+        return jsonify({"message": "规则已删除"})
+    else:
+        data = request.json
+        conn.execute(
+            """UPDATE alert_rules SET db_name=?, metric=?, threshold=?, comparison=?,
+               enabled=?, cooldown_minutes=?, updated_at=datetime('now','localtime')
+               WHERE id=?""",
+            (
+                data.get("db_name", "*"),
+                data["metric"],
+                data["threshold"],
+                data.get("comparison", ">"),
+                data.get("enabled", 1),
+                data.get("cooldown_minutes", 5),
+                rid,
+            ),
+        )
+        conn.commit()
+        conn.close()
+        return jsonify({"message": "规则已更新"})
+
+
+@app.route("/api/metrics-info")
+def metrics_info():
+    """返回可用监控指标列表"""
+    return jsonify(METRICS_INFO)
 
 
 # ─── 启动时自动恢复采集进程 ────────────────────────────────

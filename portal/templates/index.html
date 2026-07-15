@@ -282,6 +282,79 @@
     .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.6s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    /* Tab Navigation */
+    .tab-nav { display: flex; gap: 0; margin-bottom: 20px; background: var(--card-bg); border-radius: var(--radius); padding: 4px; box-shadow: var(--shadow); }
+    .tab-item {
+      flex: 1;
+      text-align: center;
+      padding: 10px 20px;
+      border-radius: 9px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: var(--text-light);
+    }
+    .tab-item.active { background: var(--primary); color: white; }
+    .tab-item:hover:not(.active) { color: var(--text); background: var(--bg); }
+
+    /* Alert Config */
+    .alert-section-card {
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 22px 24px;
+      margin-bottom: 16px;
+    }
+    .alert-section-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+    .webhook-input-group { display: flex; gap: 10px; }
+    .webhook-input-group input { flex: 1; }
+    .rule-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 8px;
+      transition: all 0.15s;
+    }
+    .rule-item:hover { border-color: var(--primary); }
+    .rule-item.disabled { opacity: 0.5; }
+    .rule-info { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .rule-metric { font-weight: 600; font-size: 14px; }
+    .rule-cond { font-size: 13px; color: var(--text-light); }
+    .rule-db { font-size: 12px; background: var(--bg); padding: 2px 8px; border-radius: 4px; color: var(--text-light); }
+    .rule-actions { display: flex; gap: 6px; }
+
+    /* Toggle switch */
+    .toggle { position: relative; display: inline-block; width: 40px; height: 22px; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #ccc; transition: 0.3s; border-radius: 22px; }
+    .toggle .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 3px; background: white; transition: 0.3s; border-radius: 50%; }
+    .toggle input:checked + .slider { background: var(--success); }
+    .toggle input:checked + .slider:before { transform: translateX(18px); }
+
+    /* Rule edit inline form */
+    .rule-edit-form {
+      padding: 16px;
+      border: 2px solid var(--primary);
+      border-radius: 8px;
+      margin-bottom: 12px;
+      background: rgba(37,99,235,0.02);
+    }
+    .rule-edit-row { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; align-items: flex-end; }
+    .rule-edit-row .field { display: flex; flex-direction: column; gap: 4px; }
+    .rule-edit-row .field label { font-size: 12px; font-weight: 600; }
+    .rule-edit-row .field select, .rule-edit-row .field input {
+      padding: 6px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 13px;
+      outline: none;
+    }
+    .rule-edit-row .field select:focus, .rule-edit-row .field input:focus { border-color: var(--primary); }
+
     /* Responsive */
     @media (max-width: 640px) {
       .header { flex-direction: column; gap: 12px; }
@@ -302,6 +375,15 @@
 </div>
 
 <div class="container">
+
+  <!-- Tab Navigation -->
+  <div class="tab-nav">
+    <div class="tab-item active" onclick="switchTab('db')">📊 数据库连接</div>
+    <div class="tab-item" onclick="switchTab('alert')">🔔 告警通知</div>
+  </div>
+
+  <!-- ─── 数据库连接 Tab ─── -->
+  <div id="tab-db">
   <div class="toolbar">
     <h2>数据库连接列表</h2>
     <div class="toolbar-actions">
@@ -318,6 +400,39 @@
       <p>点击「添加数据库」开始监控</p>
     </div>
   </div>
+  </div>
+
+  <!-- ─── 告警通知 Tab ─── -->
+  <div id="tab-alert" style="display:none;">
+
+    <!-- Webhook 配置 -->
+    <div class="alert-section-card">
+      <h3>📡 企业微信 Webhook</h3>
+      <div class="webhook-input-group">
+        <input type="text" id="webhook-url" placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxxxx" style="flex:1; padding:8px 12px; border:1px solid var(--border); border-radius:8px; font-size:14px; outline:none;">
+        <button class="btn btn-primary btn-sm" onclick="saveAlertConfig()">💾 保存</button>
+        <button class="btn btn-ghost btn-sm" onclick="testWebhook()">🔍 测试推送</button>
+      </div>
+      <div class="hint" style="margin-top:8px;">在企业微信群中添加「群机器人」，复制 Webhook 地址粘贴到此处</div>
+      <div style="margin-top:10px;">
+        <label class="toggle">
+          <input type="checkbox" id="alert-enabled" checked onchange="saveAlertConfig()">
+          <span class="slider"></span>
+        </label>
+        <span style="font-size:13px; margin-left:8px; vertical-align:super;">启用告警通知</span>
+      </div>
+    </div>
+
+    <!-- 告警规则列表 -->
+    <div class="alert-section-card">
+      <h3>⚙️ 告警规则 <span style="font-size:12px; font-weight:400; color:var(--text-light);">（超阈值推送到企业微信群）</span></h3>
+      <div id="rules-list"></div>
+      <div id="rule-edit-area"></div>
+      <button class="btn btn-primary btn-sm" onclick="openRuleForm()" id="btn-add-rule">+ 添加规则</button>
+    </div>
+
+  </div>
+
 </div>
 
 <!-- Add/Edit Modal -->
@@ -751,6 +866,181 @@ function esc(s) {
   return d.innerHTML;
 }
 
+// ─── Tab 切换 ─────────────────────────────────────────
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab-item').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab-item').forEach(el => {
+    if ((tab === 'db' && el.textContent.includes('数据库')) ||
+        (tab === 'alert' && el.textContent.includes('告警'))) {
+      el.classList.add('active');
+    }
+  });
+  document.getElementById('tab-db').style.display = tab === 'db' ? 'block' : 'none';
+  document.getElementById('tab-alert').style.display = tab === 'alert' ? 'block' : 'none';
+  if (tab === 'alert') { loadAlertConfig(); loadAlertRules(); }
+}
+
+// ─── 告警配置 API ──────────────────────────────────────
+
+async function loadAlertConfig() {
+  const cfg = await api('/api/alert-config');
+  document.getElementById('webhook-url').value = cfg.webhook_url || '';
+  document.getElementById('alert-enabled').checked = cfg.enabled !== 0;
+}
+
+async function saveAlertConfig() {
+  const data = {
+    webhook_url: document.getElementById('webhook-url').value.trim(),
+    enabled: document.getElementById('alert-enabled').checked ? 1 : 0,
+  };
+  const res = await api('/api/alert-config', 'PUT', data);
+  toast(res.message || '已保存', 'success');
+}
+
+async function testWebhook() {
+  const url = document.getElementById('webhook-url').value.trim();
+  if (!url) { toast('请先填写 Webhook URL', 'error'); return; }
+  toast('正在发送测试消息...', 'info');
+  const res = await api('/api/alert-config/test', 'POST', {webhook_url: url});
+  if (res.ok) toast(res.message, 'success');
+  else toast('测试失败: ' + res.error, 'error');
+}
+
+// ─── 告警规则 CRUD ─────────────────────────────────────
+
+let alertRules = [];
+let metricsInfo = [];
+let editingRuleId = null;
+
+async function loadMetricsInfo() {
+  metricsInfo = await api('/api/metrics-info');
+}
+
+async function loadAlertRules() {
+  alertRules = await api('/api/alert-rules');
+  renderRules();
+}
+
+function renderRules() {
+  const el = document.getElementById('rules-list');
+  if (alertRules.length === 0) {
+    el.innerHTML = '<div style="color:var(--text-light);font-size:13px;padding:8px 0;">暂无告警规则，点击下方按钮添加</div>';
+    return;
+  }
+  el.innerHTML = alertRules.map(r => {
+    const m = metricsInfo.find(x => x.value === r.metric) || {label: r.metric, unit: ''};
+    const disabledClass = r.enabled ? '' : 'disabled';
+    return `
+    <div class="rule-item ${disabledClass}">
+      <div class="rule-info">
+        <span class="rule-metric">${m.label}</span>
+        <span class="rule-cond">${r.comparison} ${r.threshold}${m.unit}</span>
+        <span class="rule-db">${r.db_name === '*' ? '所有数据库' : r.db_name}</span>
+        <span style="font-size:11px;color:var(--text-light);">冷却${r.cooldown_minutes}分钟</span>
+      </div>
+      <div class="rule-actions">
+        <button class="btn btn-ghost btn-sm" onclick="openRuleForm(${r.id})">✏</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteAlertRule(${r.id})">🗑</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openRuleForm(id) {
+  document.getElementById('btn-add-rule').style.display = 'none';
+  editingRuleId = id || null;
+
+  let rule = id ? alertRules.find(r => r.id === id) : {db_name:'*', metric:'active_sessions', threshold:50, comparison:'>', enabled:1, cooldown_minutes:5};
+  if (!rule) rule = {db_name:'*', metric:'active_sessions', threshold:50, comparison:'>', enabled:1, cooldown_minutes:5};
+
+  // 获取数据库列表作为选项
+  const dbOptions = connections.map(c => `<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('');
+  const metricOptions = metricsInfo.map(m => `<option value="${m.value}" ${m.value === rule.metric ? 'selected' : ''}>${m.label} (${m.unit})</option>`).join('');
+  const compOptions = [
+    {v:'>', l:'大于'}, {v:'<', l:'小于'}, {v:'>=', l:'大于等于'},
+    {v:'<=', l:'小于等于'}, {v:'==', l:'等于'}, {v:'!=', l:'不等于'},
+  ].map(c => `<option value="${c.v}" ${c.v === rule.comparison ? 'selected' : ''}>${c.l}</option>`).join('');
+
+  document.getElementById('rule-edit-area').innerHTML = `
+    <div class="rule-edit-form">
+      <div style="font-weight:600;margin-bottom:10px;">${id ? '编辑规则' : '新建规则'}</div>
+      <div class="rule-edit-row">
+        <div class="field" style="min-width:140px;">
+          <label>目标数据库</label>
+          <select id="re-db">
+            <option value="*" ${rule.db_name === '*' ? 'selected' : ''}>所有数据库</option>
+            ${dbOptions}
+          </select>
+        </div>
+        <div class="field" style="min-width:140px;">
+          <label>监控指标</label>
+          <select id="re-metric">${metricOptions}</select>
+        </div>
+        <div class="field" style="min-width:100px;">
+          <label>比较方式</label>
+          <select id="re-comp">${compOptions}</select>
+        </div>
+        <div class="field" style="min-width:90px;">
+          <label>阈值</label>
+          <input type="number" id="re-threshold" value="${rule.threshold}" step="any" style="width:80px;">
+        </div>
+        <div class="field" style="min-width:80px;">
+          <label>冷却(分钟)</label>
+          <input type="number" id="re-cooldown" value="${rule.cooldown_minutes}" min="1" max="1440" style="width:70px;">
+        </div>
+        <div class="field" style="min-width:70px;">
+          <label>启用</label>
+          <label class="toggle">
+            <input type="checkbox" id="re-enabled" ${rule.enabled ? 'checked' : ''}>
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-primary btn-sm" onclick="saveRule()">💾 保存</button>
+        <button class="btn btn-ghost btn-sm" onclick="closeRuleForm()">取消</button>
+      </div>
+    </div>`;
+}
+
+function closeRuleForm() {
+  editingRuleId = null;
+  document.getElementById('rule-edit-area').innerHTML = '';
+  document.getElementById('btn-add-rule').style.display = '';
+}
+
+async function saveRule() {
+  const data = {
+    db_name: document.getElementById('re-db').value,
+    metric: document.getElementById('re-metric').value,
+    comparison: document.getElementById('re-comp').value,
+    threshold: parseFloat(document.getElementById('re-threshold').value) || 0,
+    cooldown_minutes: parseInt(document.getElementById('re-cooldown').value) || 5,
+    enabled: document.getElementById('re-enabled').checked ? 1 : 0,
+  };
+
+  if (!data.metric) { toast('请选择监控指标', 'error'); return; }
+
+  const url = editingRuleId ? `/api/alert-rules/${editingRuleId}` : '/api/alert-rules';
+  const method = editingRuleId ? 'PUT' : 'POST';
+  const res = await api(url, method, data);
+  if (res.error) {
+    toast(res.error, 'error');
+  } else {
+    toast(editingRuleId ? '规则已更新' : '规则已创建', 'success');
+    closeRuleForm();
+    loadAlertRules();
+  }
+}
+
+async function deleteAlertRule(id) {
+  if (!confirm('确认删除此告警规则？')) return;
+  await api(`/api/alert-rules/${id}`, 'DELETE');
+  toast('规则已删除', 'success');
+  loadAlertRules();
+}
+
 // ─── 初始化 ───────────────────────────────────────────
 
 (async function init() {
@@ -759,6 +1049,7 @@ function esc(s) {
     el.href = 'http://' + location.hostname + ':3000';
   });
   await loadDbTypes();
+  await loadMetricsInfo();
   await loadConnections();
   // 自动刷新
   setInterval(loadConnections, 5000);
